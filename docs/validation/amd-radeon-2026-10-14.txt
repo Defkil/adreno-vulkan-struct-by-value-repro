@@ -1,0 +1,424 @@
+Source: c0e58657446649a622811d2a8b0d016f9507cc6b
+Date: 2026-10-14
+Default run: cargo run --release --locked (exit 0)
+
+Vulkan device : AMD Radeon RX 7900 XTX (vendor 0x1002, device 0x0000744c)
+API version   : 1.4.349
+driverVersion : 0x0080018b (raw)
+driverName    : AMD proprietary driver
+driverInfo    : 26.8.1 (LLPC)
+conformance   : 1.4.3.3
+
+PASS  vulkan(spirv) shaders\by_value.spv
+      expected [4.0, 4.0]
+      readback [4.0, 4.0]
+PASS  vulkan(spirv) shaders\scalar.spv
+      expected [4.0, 4.0]
+      readback [4.0, 4.0]
+PASS  vulkan(spirv) shaders\handwritten_by_value.spv
+      expected [4.0, 4.0]
+      readback [4.0, 4.0]
+PASS  vulkan(spirv) shaders\handwritten_scalar.spv
+      expected [4.0, 4.0]
+      readback [4.0, 4.0]
+PASS  vulkan(spirv) shaders\by_value_glsl.spv
+      expected [4.0, 4.0]
+      readback [4.0, 4.0]
+PASS  vulkan(spirv) shaders\scalar_glsl.spv
+      expected [4.0, 4.0]
+      readback [4.0, 4.0]
+
+all cases match: miscompilation NOT reproduced on this device/driver
+
+Extended run: 7 SPIR-V modules plus 29 WGSL files on each of 3 paths (94/94 exit 0)
+
+AMD cross-check, source c0e58657446649a622811d2a8b0d016f9507cc6b, 2026-10-14
+Vulkan device : AMD Radeon RX 7900 XTX (vendor 0x1002, device 0x0000744c)
+API version   : 1.4.349
+driverVersion : 0x0080018b (raw)
+driverName    : AMD proprietary driver
+driverInfo    : 26.8.1 (LLPC)
+conformance   : 1.4.3.3
+
+PASS  vulkan(spirv) experiments\spirv\h01_wrapped_load_call.spv
+      expected [4.0, 4.0]
+      readback [4.0, 4.0]
+Vulkan device : AMD Radeon RX 7900 XTX (vendor 0x1002, device 0x0000744c)
+API version   : 1.4.349
+driverVersion : 0x0080018b (raw)
+driverName    : AMD proprietary driver
+driverInfo    : 26.8.1 (LLPC)
+conformance   : 1.4.3.3
+
+PASS  vulkan(spirv) experiments\spirv\h02_block_struct_load_call.spv
+      expected [4.0, 4.0]
+      readback [4.0, 4.0]
+Vulkan device : AMD Radeon RX 7900 XTX (vendor 0x1002, device 0x0000744c)
+API version   : 1.4.349
+driverVersion : 0x0080018b (raw)
+driverName    : AMD proprietary driver
+driverInfo    : 26.8.1 (LLPC)
+conformance   : 1.4.3.3
+
+PASS  vulkan(spirv) experiments\spirv\h03_copyobject_before_call.spv
+      expected [4.0, 4.0]
+      readback [4.0, 4.0]
+Vulkan device : AMD Radeon RX 7900 XTX (vendor 0x1002, device 0x0000744c)
+API version   : 1.4.349
+driverVersion : 0x0080018b (raw)
+driverName    : AMD proprietary driver
+driverInfo    : 26.8.1 (LLPC)
+conformance   : 1.4.3.3
+
+PASS  vulkan(spirv) experiments\spirv\h04_construct_from_member_loads.spv
+      expected [4.0, 4.0]
+      readback [4.0, 4.0]
+Vulkan device : AMD Radeon RX 7900 XTX (vendor 0x1002, device 0x0000744c)
+API version   : 1.4.349
+driverVersion : 0x0080018b (raw)
+driverName    : AMD proprietary driver
+driverInfo    : 26.8.1 (LLPC)
+conformance   : 1.4.3.3
+
+PASS  vulkan(spirv) experiments\spirv\h05_separate_param_type.spv
+      expected [4.0, 4.0]
+      readback [4.0, 4.0]
+Vulkan device : AMD Radeon RX 7900 XTX (vendor 0x1002, device 0x0000744c)
+API version   : 1.4.349
+driverVersion : 0x0080018b (raw)
+driverName    : AMD proprietary driver
+driverInfo    : 26.8.1 (LLPC)
+conformance   : 1.4.3.3
+
+PASS  vulkan(spirv) experiments\spirv\h06_load_extract_no_call.spv
+      expected [4.0, 4.0]
+      readback [4.0, 4.0]
+Vulkan device : AMD Radeon RX 7900 XTX (vendor 0x1002, device 0x0000744c)
+API version   : 1.4.349
+driverVersion : 0x0080018b (raw)
+driverName    : AMD proprietary driver
+driverInfo    : 26.8.1 (LLPC)
+conformance   : 1.4.3.3
+
+PASS  vulkan(spirv) experiments\spirv\h07_scalar_param.spv
+      expected [4.0, 4.0]
+      readback [4.0, 4.0]
+PASS  vulkan(naga) experiments\e01_atmosphere_struct_return_field.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) experiments\e01_atmosphere_struct_return_field.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) experiments\e01_atmosphere_struct_return_field.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+PASS  vulkan(naga) experiments\e02_vec3_f32_f32.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) experiments\e02_vec3_f32_f32.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) experiments\e02_vec3_f32_f32.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+PASS  vulkan(naga) experiments\e03_vec3_f32.wgsl
+      expected [4.0]
+      readback [4.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) experiments\e03_vec3_f32.wgsl
+      expected [4.0]
+      readback [4.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) experiments\e03_vec3_f32.wgsl
+      expected [4.0]
+      readback [4.0]
+PASS  vulkan(naga) experiments\e04_scalars_only.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) experiments\e04_scalars_only.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) experiments\e04_scalars_only.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+PASS  vulkan(naga) experiments\e05_vec4_f32_f32.wgsl
+      expected [5.0, 6.0]
+      readback [5.0, 6.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) experiments\e05_vec4_f32_f32.wgsl
+      expected [5.0, 6.0]
+      readback [5.0, 6.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) experiments\e05_vec4_f32_f32.wgsl
+      expected [5.0, 6.0]
+      readback [5.0, 6.0]
+PASS  vulkan(naga) experiments\e06_no_helper_whole_load.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) experiments\e06_no_helper_whole_load.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) experiments\e06_no_helper_whole_load.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+PASS  vulkan(naga) experiments\e07_vec3_members.wgsl
+      expected [1.0, 2.0, 3.0, 4.0]
+      readback [1.0, 2.0, 3.0, 4.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) experiments\e07_vec3_members.wgsl
+      expected [1.0, 2.0, 3.0, 4.0]
+      readback [1.0, 2.0, 3.0, 4.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) experiments\e07_vec3_members.wgsl
+      expected [1.0, 2.0, 3.0, 4.0]
+      readback [1.0, 2.0, 3.0, 4.0]
+PASS  vulkan(naga) experiments\e08_function_pointer.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) experiments\e08_function_pointer.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) experiments\e08_function_pointer.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+PASS  vulkan(naga) experiments\e09_var_copy_by_value.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) experiments\e09_var_copy_by_value.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) experiments\e09_var_copy_by_value.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+PASS  vulkan(naga) experiments\e10_f32_vec3_f32.wgsl
+      expected [1.0, 5.0, 6.0, 7.0, 8.0]
+      readback [1.0, 5.0, 6.0, 7.0, 8.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) experiments\e10_f32_vec3_f32.wgsl
+      expected [1.0, 5.0, 6.0, 7.0, 8.0]
+      readback [1.0, 5.0, 6.0, 7.0, 8.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) experiments\e10_f32_vec3_f32.wgsl
+      expected [1.0, 5.0, 6.0, 7.0, 8.0]
+      readback [1.0, 5.0, 6.0, 7.0, 8.0]
+PASS  vulkan(naga) experiments\e11_vec2_f32_f32.wgsl
+      expected [3.0, 4.0]
+      readback [3.0, 4.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) experiments\e11_vec2_f32_f32.wgsl
+      expected [3.0, 4.0]
+      readback [3.0, 4.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) experiments\e11_vec2_f32_f32.wgsl
+      expected [3.0, 4.0]
+      readback [3.0, 4.0]
+PASS  vulkan(naga) experiments\e12_two_vec3.wgsl
+      expected [4.0, 5.0, 8.0]
+      readback [4.0, 5.0, 8.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) experiments\e12_two_vec3.wgsl
+      expected [4.0, 5.0, 8.0]
+      readback [4.0, 5.0, 8.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) experiments\e12_two_vec3.wgsl
+      expected [4.0, 5.0, 8.0]
+      readback [4.0, 5.0, 8.0]
+PASS  vulkan(naga) experiments\e13_scalar_control.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) experiments\e13_scalar_control.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) experiments\e13_scalar_control.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+PASS  vulkan(naga) experiments\e14_vec3_f32_only_helper_returns_a.wgsl
+      expected [4.0]
+      readback [4.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) experiments\e14_vec3_f32_only_helper_returns_a.wgsl
+      expected [4.0]
+      readback [4.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) experiments\e14_vec3_f32_only_helper_returns_a.wgsl
+      expected [4.0]
+      readback [4.0]
+PASS  vulkan(naga) experiments\e15_nested_struct_member.wgsl
+      expected [4.0]
+      readback [4.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) experiments\e15_nested_struct_member.wgsl
+      expected [4.0]
+      readback [4.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) experiments\e15_nested_struct_member.wgsl
+      expected [4.0]
+      readback [4.0]
+PASS  vulkan(naga) experiments\e16_constructed_struct.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) experiments\e16_constructed_struct.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) experiments\e16_constructed_struct.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+PASS  vulkan(naga) experiments\e17_storage_buffer_struct.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) experiments\e17_storage_buffer_struct.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) experiments\e17_storage_buffer_struct.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+PASS  vulkan(naga) experiments\e18_workgroup_struct.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) experiments\e18_workgroup_struct.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) experiments\e18_workgroup_struct.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+PASS  vulkan(naga) experiments\e19_private_struct.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) experiments\e19_private_struct.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) experiments\e19_private_struct.wgsl
+      expected [4.0, 5.0]
+      readback [4.0, 5.0]
+PASS  vulkan(naga) experiments\e20_vec3u32_f32.wgsl
+      expected [4.0]
+      readback [4.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) experiments\e20_vec3u32_f32.wgsl
+      expected [4.0]
+      readback [4.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) experiments\e20_vec3u32_f32.wgsl
+      expected [4.0]
+      readback [4.0]
+PASS  vulkan(naga) experiments\e21_vec3_aligned_member.wgsl
+      expected [5.0]
+      readback [5.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) experiments\e21_vec3_aligned_member.wgsl
+      expected [5.0]
+      readback [5.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) experiments\e21_vec3_aligned_member.wgsl
+      expected [5.0]
+      readback [5.0]
+PASS  vulkan(naga) experiments\e22_helper_uses_vec3_and_a.wgsl
+      expected [4.0]
+      readback [4.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) experiments\e22_helper_uses_vec3_and_a.wgsl
+      expected [4.0]
+      readback [4.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) experiments\e22_helper_uses_vec3_and_a.wgsl
+      expected [4.0]
+      readback [4.0]
+PASS  vulkan(naga) experiments\e23_two_args.wgsl
+      expected [4.0]
+      readback [4.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) experiments\e23_two_args.wgsl
+      expected [4.0]
+      readback [4.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) experiments\e23_two_args.wgsl
+      expected [4.0]
+      readback [4.0]
+PASS  vulkan(naga) experiments\e24_nested_call.wgsl
+      expected [4.0]
+      readback [4.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) experiments\e24_nested_call.wgsl
+      expected [4.0]
+      readback [4.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) experiments\e24_nested_call.wgsl
+      expected [4.0]
+      readback [4.0]
+PASS  vulkan(naga) experiments\e25_return_struct.wgsl
+      expected [4.0]
+      readback [4.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) experiments\e25_return_struct.wgsl
+      expected [4.0]
+      readback [4.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) experiments\e25_return_struct.wgsl
+      expected [4.0]
+      readback [4.0]
+PASS  vulkan(naga) experiments\e26_array_of_vec3_struct.wgsl
+      expected [4.0, 8.0]
+      readback [4.0, 8.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) experiments\e26_array_of_vec3_struct.wgsl
+      expected [4.0, 8.0]
+      readback [4.0, 8.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) experiments\e26_array_of_vec3_struct.wgsl
+      expected [4.0, 8.0]
+      readback [4.0, 8.0]
+PASS  vulkan(naga) experiments\e27_bevy_clamp_to_surface_shape.wgsl
+      expected [5.0]
+      readback [5.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) experiments\e27_bevy_clamp_to_surface_shape.wgsl
+      expected [5.0]
+      readback [5.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) experiments\e27_bevy_clamp_to_surface_shape.wgsl
+      expected [5.0]
+      readback [5.0]
+PASS  vulkan(naga) shaders\by_value.wgsl
+      expected [4.0, 4.0]
+      readback [4.0, 4.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) shaders\by_value.wgsl
+      expected [4.0, 4.0]
+      readback [4.0, 4.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) shaders\by_value.wgsl
+      expected [4.0, 4.0]
+      readback [4.0, 4.0]
+PASS  vulkan(naga) shaders\scalar.wgsl
+      expected [4.0, 4.0]
+      readback [4.0, 4.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Vulkan / driver "AMD proprietary driver" / "26.8.1 (LLPC)"
+PASS  wgpu(vulkan) shaders\scalar.wgsl
+      expected [4.0, 4.0]
+      readback [4.0, 4.0]
+wgpu adapter: AMD Radeon RX 7900 XTX / Dx12 / driver "32.0.31041.1004" / ""
+PASS  wgpu(dx12) shaders\scalar.wgsl
+      expected [4.0, 4.0]
+      readback [4.0, 4.0]

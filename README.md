@@ -1,25 +1,72 @@
-# Adreno Vulkan: uniform struct passed by value reads the wrong member
+# Adreno Vulkan: wrong field reads from structs passed by value
 
-On a Qualcomm Adreno X1-85 (Snapdragon X Elite) with the Windows Vulkan driver,
-a compute shader that loads a whole struct from a uniform (or storage) buffer
-and passes that value into a helper function reads the wrong member inside
-the helper. For `struct S { v: vec3<f32>, a: f32 }` (`a` at byte offset 12,
-packed into the `vec3`'s 16-byte slot) the helper's `s.a` returns the float at
-byte offset **16** instead of 12. The same member read directly in the caller
-is correct, passing the member as a scalar argument is correct, and the same
-shader through DX12 on the same GPU is correct. The SPIR-V is accepted by
-`spirv-val --target-env vulkan1.0` (SPIRV-Tools v2026.4), and a hand-written
-SPIR-V module without any front end reproduces it, which points to the Vulkan
-driver's shader compiler. This repository runs the committed SPIR-V through
-raw Vulkan (`ash`, no wgpu) and reads the result back.
+A compute shader on **Adreno X1-85 / Windows Vulkan** reads a struct member
+at byte offset **16 instead of 12** when a uniform or storage-buffer struct
+is passed by value into a helper. The helper returns **5.0 instead of 4.0**;
+a direct read of the same field in the same invocation returns 4.0.
 
-The case was found in Bevy 0.20's atmosphere shaders: the helper
-`clamp_to_surface(atmosphere: Atmosphere, position)` read `outer_radius`
-instead of `inner_radius` (observer at 6,460,001 m instead of 6,360,002 m),
-which then produced an upward distance of 0 and NaN look-up coordinates.
-Passing the needed radii as scalar arguments works around it.
+A **56-line hand-written SPIR-V module** reproduces the failure without naga,
+wgpu, or Bevy. All 13 committed SPIR-V modules pass the standalone validator.
+The same WGSL passes on **DX12 on the affected Adreno**. On a second host,
+an **AMD Radeon RX 7900 XTX passes all 100 comparison checks**. These
+controls point to the Adreno Vulkan driver's shader compiler.
 
-## Expected and actual readback
+## Reproduce
+
+Requires Rust (stable, 2024 edition) and a Vulkan driver. The default build
+depends only on [`ash`](https://crates.io/crates/ash) and loads the
+committed SPIR-V; no shader compiler is involved.
+
+```text
+git clone https://github.com/Defkil/adreno-vulkan-struct-by-value-repro.git
+cd adreno-vulkan-struct-by-value-repro
+cargo run --release --locked                 # six standard cases via raw Vulkan
+cargo run --release --locked -- --spv shaders/by_value.spv
+```
+
+Exit code **1** means a mismatch; exit code **0** means every case matched.
+The runner prints the selected GPU and driver. No window or game assets are
+required. Optional paths:
+
+```text
+# WGSL through wgpu 30.0.1: Vulkan, and the DX12 control
+cargo run --release --locked --features wgpu -- --wgpu shaders/by_value.wgsl
+cargo run --release --locked --features wgpu -- --wgpu shaders/by_value.wgsl --dx12
+
+# Any WGSL compiled by naga 30.0.1, run via raw Vulkan (used for experiments/)
+cargo run --release --locked --features naga -- --wgsl experiments/e03_vec3_f32.wgsl
+```
+
+## Tested devices and results
+
+Measurements dated **2026-10-14**. The Radeon comparison used unchanged source
+at commit **c0e58657446649a622811d2a8b0d016f9507cc6b**.
+
+| | Affected host | Comparison host |
+| --- | --- | --- |
+| Device | Surface Pro, 11th Edition / Snapdragon X Elite X1E80100 | Windows x64 desktop |
+| GPU | Qualcomm Adreno X1-85 | AMD Radeon RX 7900 XTX |
+| Windows display driver | 31.0.170.0 | 32.0.31041.1004 |
+| Vulkan driver | Adreno compiler E031.52.01.00 | AMD 26.8.1 (LLPC) |
+| Vulkan API | 1.4.295 | 1.4.349 |
+| Windows | 11 Home 25H2, 26200.9457, ARM64 | 11 Pro 25H2, 26200.9550, x64 |
+| Minimal by-value readback, Vulkan | **[5.0, 4.0] — incorrect** | [4.0, 4.0] — correct |
+| WGSL through wgpu/DX12 | All 29 files pass | All 29 files pass |
+
+The Radeon passed **all 13 committed SPIR-V modules** through raw Vulkan and
+**all 29 WGSL files** (2 standard + 27 experiments) on each of three paths:
+naga/raw Vulkan, wgpu/Vulkan, and wgpu/DX12. That is **100 GPU checks, no
+mismatches**, including every case that failed on Adreno. Both minimal
+by-value modules returned [4.0, 4.0].
+
+- [Radeon validation report, exact environment, and commands](docs/validation/amd-radeon-2026-10-14.md)
+- [All 100 Radeon readbacks](docs/validation/amd-radeon-2026-10-14.txt)
+
+This confirms the standalone repro passes on that Radeon device/driver.
+The original Bevy game was not tested on the comparison host, and other
+GPU/driver combinations remain untested.
+
+## Expected and actual readback on Adreno
 
 Every shader reads the same uniform buffer: 64 floats where float `i` holds
 `i + 1` (so a value names the slot it was read from: byte offset =
@@ -36,7 +83,10 @@ Every shader reads the same uniform buffer: 64 floats where float `i` holds
 | `shaders/by_value.wgsl` through wgpu, **DX12** | 4 | 4 | pass |
 | `shaders/by_value.wgsl` through wgpu, Vulkan | expected 4, **actual 5** | 4 | FAIL |
 
-Output of `cargo run --release` on the device below:
+<details>
+<summary>Full Adreno Vulkan output</summary>
+
+Output of `cargo run --release` on Adreno X1-85, driver 31.0.170.0:
 
 ```text
 Vulkan device : Qualcomm(R) Adreno(TM) X1-85 GPU (vendor 0x5143, device 0x36334330)
@@ -71,6 +121,8 @@ PASS  vulkan(spirv) shaders\scalar_glsl.spv
 mismatching cases: ["by_value.spv", "handwritten_by_value.spv"]: miscompilation reproduced
 ```
 
+</details>
+
 ## The minimal shader
 
 [`shaders/by_value.wgsl`](shaders/by_value.wgsl):
@@ -98,6 +150,9 @@ fn main() {
 The control [`shaders/scalar.wgsl`](shaders/scalar.wgsl) differs only in
 `fn get_a(a: f32) -> f32 { return a; }` called as `get_a(u.a)`.
 
+<details>
+<summary>SPIR-V analysis, failure conditions, and all 34 experiment results</summary>
+
 The same as hand-written SPIR-V 1.0,
 [`shaders/handwritten_by_value.spvasm`](shaders/handwritten_by_value.spvasm)
 (no front end, no wrapper struct), essential part:
@@ -118,8 +173,8 @@ OpDecorate %S Block
 
 ### What triggers it
 
-Found by the variants in [`experiments/`](experiments) (all on the device
-below, Vulkan; every WGSL variant passes through DX12):
+Found by the variants in [xperiments/](experiments), all on Adreno X1-85
+with driver 31.0.170.0, Vulkan. Every WGSL variant passes through DX12:
 
 - An `OpLoad` of a whole explicitly laid-out struct from a `Uniform` or
   `StorageBuffer` variable whose SSA value reaches an `OpFunctionCall`
@@ -206,27 +261,91 @@ mismatches. Run through naga + raw Vulkan (`--wgsl`) and wgpu Vulkan
 | `spirv/h07_scalar_param` | scalar parameter | 4 4 | 4 4 |
 | e03 with helper `FunctionControl` `Inline` / `DontInline` (patched binary) | | 4 | **5** / **5** |
 
-## Build and run
+</details>
 
-Requires Rust (stable, 2024 edition) and a Vulkan driver. The default build
-depends only on [`ash`](https://crates.io/crates/ash) and loads the
-committed SPIR-V; no shader compiler is involved.
+## Controls
 
-```text
-cargo run --release                          # all committed SPIR-V cases via raw Vulkan
-cargo run --release -- --spv shaders/by_value.spv
-```
+- **Scalar argument vs struct by value**: the scalar-argument twin of every
+  failing shader passes (`scalar.*`, `handwritten_scalar.*`, `e13`, `h07`).
+- **Same-dispatch direct read**: each failing shader in `shaders/` and
+  `experiments/spirv/` also reads `S.a` directly in `main` (`out[1]`) in the
+  same compute invocation, returning `4.0` while `get_a(u)` in `out[0]`
+  returns `5.0`.
+- **Whole-struct `OpLoad` vs `OpFunctionCall` boundary**:
+  - `OpLoad %S` from `Uniform` followed by `OpCompositeExtract` in `main`
+    without a call passes (`e06`, `h06`).
+  - Calling the exact same `%get_a(%S)` helper (taking the `Offset`-decorated
+    `%S` by value) passes when the `%S` argument is loaded from a local
+    `Function` variable (`e09`) or constructed with `OpCompositeConstruct`
+    from member loads (`h04`, `e16`).
+- **No shader front end**: a 56-line hand-written SPIR-V 1.0 module
+  (`shaders/handwritten_by_value.spvasm`) without naga's block wrapper
+  reproduces the exact same `5.0` vs `4.0` mismatch.
+- **Vulkan vs DX12 on the same GPU**: every WGSL shader (including all 27
+  variants in `experiments/`) passes through DX12 (`--wgpu --dx12`).
+- **SPIR-V validity**: every committed SPIR-V module passes `spirv-val`
+  (SPIRV-Tools v2026.4 and v2025.3) for Vulkan 1.0 and Vulkan 1.3.
+- **Second host**: all 100 GPU checks pass on AMD Radeon RX 7900 XTX;
+  see the comparison and readback links above.
 
-The exit code is 1 when any case mismatches. Optional paths:
+## Workarounds
 
-```text
-# WGSL through wgpu 30.0.1: Vulkan, and the DX12 control
-cargo run --release --features wgpu -- --wgpu shaders/by_value.wgsl
-cargo run --release --features wgpu -- --wgpu shaders/by_value.wgsl --dx12
+In WGSL or SPIR-V targeting this driver:
 
-# Any WGSL compiled by naga 30.0.1, run via raw Vulkan (used for experiments/)
-cargo run --release --features naga -- --wgsl experiments/e03_vec3_f32.wgsl
-```
+1. **Pass individual scalar or vector fields** to helper functions instead of
+   passing the uniform/storage struct by value (`shaders/scalar.wgsl`, `e13`,
+   `h07`).
+2. **Copy the struct into a function-local variable first** (`var s = u;
+   get_a(s);` as in `e09`, or pass `&s` as `ptr<function, S>` as in `e08`) so
+   the call argument is loaded from `Function` storage class rather than
+   directly from `Uniform` or `StorageBuffer`.
+3. **Avoid packing a member at byte offset 12 after a `vec3`** when you
+   control the buffer layout (for example, annotate the following member with
+   `@align(16)` as in `e21`, or pack `vec3<f32>` + `f32` into a `vec4<f32>`
+   as in `e05`). Update the host-side buffer layout to match.
+
+## Original impact
+
+Found in Bevy 0.20's atmosphere shaders: the helper
+`clamp_to_surface(atmosphere: Atmosphere, position)` read `outer_radius`
+instead of `inner_radius`, clamping a ground + 2 m observer to 6,460,001 m
+instead of 6,360,002 m. The upward distance became 0 and transmittance
+lookup coordinates became NaN. Passing the needed radii as scalar arguments
+works around the problem.
+
+## Adreno environment
+
+<details>
+<summary>Full affected-device and toolchain details</summary>
+
+Gathered on 2026-10-14 with `Get-CimInstance`, the Windows registry and the
+adapter info printed by this program.
+
+| | |
+| --- | --- |
+| Device | Microsoft Surface Pro, 11th Edition (SKU `Surface_Pro_11th_Edition_2076`), UEFI 175.222.235 |
+| SoC | Snapdragon X Elite X1E80100 (`Snapdragon(R) X 12-core X1E80100 @ 3.40 GHz`) |
+| GPU | Qualcomm(R) Adreno(TM) X1-85 GPU, Vulkan vendor `0x5143`, device `0x36334330` |
+| Graphics driver | 31.0.170.0 (Windows driver date 2026-07-25) |
+| Vulkan `driverName` | Qualcomm Technologies Inc. Adreno Vulkan Driver |
+| Vulkan `driverInfo` | `Driver Build: 0eb8636cd3, Id6ce193842, 1782814497` / `Date: 06/30/2026` / `Compiler Version: E031.52.01.00` / `Driver Branch: BVT_187` |
+| Vulkan `driverVersion` (raw) | `0x80376000` |
+| Vulkan API version | 1.4.295, conformance version 1.4.1.0 |
+| Vulkan loader | `vulkan-1.dll` 1.4.350.0 |
+| OS | Windows 11 Home, version 25H2, build 26200.9457, ARM64 |
+| Rust | rustc 1.98.1 (48a229cea 2026-09-01) and rustc 1.96.0 (ac68faa20 2026-05-25), host `aarch64-pc-windows-msvc` |
+| Crates | ash 0.38.0+1.3.281; naga 30.0.1; rspirv 0.13.0+sdk-1.4.341.0; wgpu 30.0.1; pollster 0.4.0; tools: shaderc 0.10.1 (glslang 15.3.0), spirv-tools 0.13.3 (SPIRV-Tools v2025.3, used for `as`/`dis`/`validate`); standalone validation: `spirv-val` v2026.4 |
+
+The original Bevy case also failed on the earlier driver 31.0.137.0 (Vulkan
+`Driver Build: f6d77cea75, I4ecc8b8813`, 2025-11-20, compiler
+`E031.50.31.01`); this reduced repro was only run on 31.0.170.0.
+
+</details>
+
+## Regenerating and validating shaders
+
+<details>
+<summary>Compiler tools, regeneration commands, and standalone SPIR-V validation</summary>
 
 ### Regenerating and validating the SPIR-V
 
@@ -274,70 +393,7 @@ diagnostics). The original Bevy module was checked earlier with SPIRV-Tools
 The regeneration is deterministic: re-emitting the WGSL, GLSL, or `.spvasm`
 files produces the committed bytes.
 
-## Controls
-
-- **Scalar argument vs struct by value**: the scalar-argument twin of every
-  failing shader passes (`scalar.*`, `handwritten_scalar.*`, `e13`, `h07`).
-- **Same-dispatch direct read**: each failing shader in `shaders/` and
-  `experiments/spirv/` also reads `S.a` directly in `main` (`out[1]`) in the
-  same compute invocation, returning `4.0` while `get_a(u)` in `out[0]`
-  returns `5.0`.
-- **Whole-struct `OpLoad` vs `OpFunctionCall` boundary**:
-  - `OpLoad %S` from `Uniform` followed by `OpCompositeExtract` in `main`
-    without a call passes (`e06`, `h06`).
-  - Calling the exact same `%get_a(%S)` helper (taking the `Offset`-decorated
-    `%S` by value) passes when the `%S` argument is loaded from a local
-    `Function` variable (`e09`) or constructed with `OpCompositeConstruct`
-    from member loads (`h04`, `e16`).
-- **No shader front end**: a 56-line hand-written SPIR-V 1.0 module
-  (`shaders/handwritten_by_value.spvasm`) without naga's block wrapper
-  reproduces the exact same `5.0` vs `4.0` mismatch.
-- **Vulkan vs DX12 on the same GPU**: every WGSL shader (including all 27
-  variants in `experiments/`) passes through DX12 (`--wgpu --dx12`).
-- **SPIR-V validity**: every committed SPIR-V module passes `spirv-val`
-  (SPIRV-Tools v2026.4 and v2025.3) for Vulkan 1.0 and Vulkan 1.3.
-- **Not checked**: other GPUs and drivers (no other Vulkan device was
-  available).
-
-## Workarounds
-
-In WGSL or SPIR-V targeting this driver:
-
-1. **Pass individual scalar or vector fields** to helper functions instead of
-   passing the uniform/storage struct by value (`shaders/scalar.wgsl`, `e13`,
-   `h07`).
-2. **Copy the struct into a function-local variable first** (`var s = u;
-   get_a(s);` as in `e09`, or pass `&s` as `ptr<function, S>` as in `e08`) so
-   the call argument is loaded from `Function` storage class rather than
-   directly from `Uniform` or `StorageBuffer`.
-3. **Avoid packing a member at byte offset 12 after a `vec3`** when you
-   control the buffer layout (for example, annotate the following member with
-   `@align(16)` as in `e21`, or pack `vec3<f32>` + `f32` into a `vec4<f32>`
-   as in `e05`).
-
-## Environment
-
-Gathered on 2026-10-14 with `Get-CimInstance`, the Windows registry and the
-adapter info printed by this program.
-
-| | |
-| --- | --- |
-| Device | Microsoft Surface Pro, 11th Edition (SKU `Surface_Pro_11th_Edition_2076`), UEFI 175.222.235 |
-| SoC | Snapdragon X Elite X1E80100 (`Snapdragon(R) X 12-core X1E80100 @ 3.40 GHz`) |
-| GPU | Qualcomm(R) Adreno(TM) X1-85 GPU, Vulkan vendor `0x5143`, device `0x36334330` |
-| Graphics driver | 31.0.170.0 (Windows driver date 2026-07-25) |
-| Vulkan `driverName` | Qualcomm Technologies Inc. Adreno Vulkan Driver |
-| Vulkan `driverInfo` | `Driver Build: 0eb8636cd3, Id6ce193842, 1782814497` / `Date: 06/30/2026` / `Compiler Version: E031.52.01.00` / `Driver Branch: BVT_187` |
-| Vulkan `driverVersion` (raw) | `0x80376000` |
-| Vulkan API version | 1.4.295, conformance version 1.4.1.0 |
-| Vulkan loader | `vulkan-1.dll` 1.4.350.0 |
-| OS | Windows 11 Home, version 25H2, build 26200.9457, ARM64 |
-| Rust | rustc 1.98.1 (48a229cea 2026-09-01) and rustc 1.96.0 (ac68faa20 2026-05-25), host `aarch64-pc-windows-msvc` |
-| Crates | ash 0.38.0+1.3.281; naga 30.0.1; rspirv 0.13.0+sdk-1.4.341.0; wgpu 30.0.1; pollster 0.4.0; tools: shaderc 0.10.1 (glslang 15.3.0), spirv-tools 0.13.3 (SPIRV-Tools v2025.3, used for `as`/`dis`/`validate`); standalone validation: `spirv-val` v2026.4 |
-
-The original Bevy case also failed on the earlier driver 31.0.137.0 (Vulkan
-`Driver Build: f6d77cea75, I4ecc8b8813`, 2025-11-20, compiler
-`E031.50.31.01`); this reduced repro was only run on 31.0.170.0.
+</details>
 
 ## License
 
