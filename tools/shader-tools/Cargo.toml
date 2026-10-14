@@ -1,0 +1,14 @@
+[package]
+name = "shader-tools"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# Separate from the repro so the repro itself needs no C++ toolchain.
+# Builds SPIRV-Tools (validator, disassembler) and glslang (via shaderc) from source.
+[workspace]
+
+[dependencies]
+spirv-tools = "=0.13.3"
+shaderc = { version = "=0.10.1", features = ["build-from-source"] }

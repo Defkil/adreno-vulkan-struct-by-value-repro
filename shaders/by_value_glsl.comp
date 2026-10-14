@@ -1,0 +1,20 @@
+#version 450
+// GLSL twin of by_value.wgsl, compiled with glslang (shaderc).
+// expect: 4 4
+struct S {
+    vec3 v;  // offset 0
+    float a; // offset 12 (std140 packs it into the vec3's slot)
+};
+
+layout(set = 0, binding = 0, std140) uniform U { S s; } u;
+layout(set = 0, binding = 1, std430) buffer Out { float o[16]; } result;
+
+float get_a(S s) {
+    return s.a;
+}
+
+layout(local_size_x = 1) in;
+void main() {
+    result.o[0] = get_a(u.s);
+    result.o[1] = u.s.a;
+}

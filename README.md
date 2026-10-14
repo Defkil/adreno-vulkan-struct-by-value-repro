@@ -1,0 +1,285 @@
+# Adreno Vulkan: uniform struct passed by value reads the wrong member
+
+On a Qualcomm Adreno X1-85 (Snapdragon X Elite) with the Windows Vulkan driver,
+a compute shader that loads a whole struct from a uniform (or storage) buffer
+and passes that value into a helper function reads the wrong member inside
+the helper. For `struct S { v: vec3<f32>, a: f32 }` (`a` at byte offset 12,
+packed into the `vec3`'s 16-byte slot) the helper's `s.a` returns the float at
+byte offset **16** instead of 12. The same member read directly in the caller
+is correct, passing the member as a scalar argument is correct, and the same
+shader through DX12 on the same GPU is correct. The SPIR-V is accepted by
+`spirv-val --target-env vulkan1.0`, and a hand-written SPIR-V module without
+any front end reproduces it, so the fault is in the Vulkan driver's shader
+compiler. This repository runs the committed SPIR-V through raw Vulkan
+(`ash`, no wgpu) and reads the result back.
+
+The case was found in Bevy 0.20's atmosphere shaders: the helper
+`clamp_to_surface(atmosphere: Atmosphere, position)` read `outer_radius`
+instead of `inner_radius` (observer at 6,460,001 m instead of 6,360,002 m),
+which then produced an upward distance of 0 and NaN look-up coordinates.
+Passing the needed radii as scalar arguments works around it.
+
+## Expected and actual readback
+
+Every shader reads the same uniform buffer: 64 floats where float `i` holds
+`i + 1` (so a value names the slot it was read from: byte offset =
+`(value - 1) * 4`). The storage buffer is prefilled with `-1`.
+
+| Shader (committed SPIR-V) | `out[0]` = helper result | `out[1]` = `S.a` read directly | Result |
+| --- | --- | --- | --- |
+| `shaders/by_value.spv` (WGSL via naga) | expected 4, **actual 5** | 4 | FAIL |
+| `shaders/scalar.spv` (control) | 4 | 4 | pass |
+| `shaders/handwritten_by_value.spv` (hand-written SPIR-V) | expected 4, **actual 5** | 4 | FAIL |
+| `shaders/handwritten_scalar.spv` (control) | 4 | 4 | pass |
+| `shaders/by_value_glsl.spv` (GLSL via glslang) | 4 | 4 | pass, see below |
+| `shaders/scalar_glsl.spv` (GLSL control) | 4 | 4 | pass |
+| `shaders/by_value.wgsl` through wgpu, **DX12** | 4 | 4 | pass |
+| `shaders/by_value.wgsl` through wgpu, Vulkan | expected 4, **actual 5** | 4 | FAIL |
+
+Output of `cargo run --release` on the device below:
+
+```text
+FAIL  vulkan(spirv) ...\shaders\by_value.spv
+      expected [4.0, 4.0]
+      readback [5.0, 4.0]
+PASS  vulkan(spirv) ...\shaders\scalar.spv
+      expected [4.0, 4.0]
+      readback [4.0, 4.0]
+FAIL  vulkan(spirv) ...\shaders\handwritten_by_value.spv
+      expected [4.0, 4.0]
+      readback [5.0, 4.0]
+PASS  vulkan(spirv) ...\shaders\handwritten_scalar.spv
+PASS  vulkan(spirv) ...\shaders\by_value_glsl.spv
+PASS  vulkan(spirv) ...\shaders\scalar_glsl.spv
+
+mismatching cases: ["by_value.spv", "handwritten_by_value.spv"]: miscompilation reproduced
+```
+
+## The minimal shader
+
+[`shaders/by_value.wgsl`](shaders/by_value.wgsl):
+
+```wgsl
+struct S {
+    v: vec3<f32>, // offset 0, size 12
+    a: f32,       // offset 12 (packed into the vec3's 16-byte slot)
+}
+
+@group(0) @binding(0) var<uniform> u: S;
+@group(0) @binding(1) var<storage, read_write> output: array<f32, 16>;
+
+fn get_a(s: S) -> f32 {
+    return s.a;
+}
+
+@compute @workgroup_size(1)
+fn main() {
+    output[0] = get_a(u); // returns 5 (offset 16) on Adreno Vulkan, must be 4
+    output[1] = u.a;      // returns 4
+}
+```
+
+The control [`shaders/scalar.wgsl`](shaders/scalar.wgsl) differs only in
+`fn get_a(a: f32) -> f32 { return a; }` called as `get_a(u.a)`.
+
+The same as hand-written SPIR-V 1.0,
+[`shaders/handwritten_by_value.spvasm`](shaders/handwritten_by_value.spvasm)
+(no front end, no wrapper struct), essential part:
+
+```text
+OpMemberDecorate %S 0 Offset 0
+OpMemberDecorate %S 1 Offset 12
+OpDecorate %S Block
+%S = OpTypeStruct %v3float %float
+%u = OpVariable %ptr_Uniform_S Uniform
+%get_a = OpFunction %float None %fn_get      ; (S) -> float
+%s = OpFunctionParameter %S
+  %a = OpCompositeExtract %float %s 1        ; returns the float at offset 16
+...
+%v = OpLoad %S %u
+%r = OpFunctionCall %float %get_a %v
+```
+
+### What triggers it
+
+Found by the variants in [`experiments/`](experiments) (all on the device
+below, Vulkan; every one of them passes through DX12):
+
+- An `OpLoad` of a whole explicitly laid-out struct from a `Uniform` or
+  `StorageBuffer` variable whose value reaches an `OpFunctionCall` argument
+  (directly, through `OpCopyObject`, through a nested call, or returned back
+  out of the helper), and
+- the struct has a `vec3` followed by a member that starts inside the
+  `vec3`'s 16-byte slot (offset 12).
+- The member after a `vec3` is then read 4 bytes too far. With two `vec3`
+  members every later member shifts by another 4 bytes. The observed values
+  match a layout where every `vec3` occupies 16 bytes, i.e. as if the
+  `Offset` decorations were replaced by a vec4-sized `vec3` layout for the
+  value passed into the call (that is an interpretation of the readback, not
+  knowledge of the driver). The wrong read can leave the struct: for the
+  16-byte struct above it reads byte 16.
+- Not relevant: struct size (16, 32 and 96 bytes all fail), the 96-byte
+  `mat4x4` tail, the element type of the `vec3` (`vec3<u32>` fails too),
+  the function control (`None`, `Inline`, `DontInline` all fail), naga's
+  block wrapper struct (the hand-written module without it fails).
+- Not affected: the same load used in the same function (`OpLoad` +
+  `OpCompositeExtract` without a call), a struct copied into a `Function`
+  variable first and then loaded and passed, a struct in `Workgroup` or
+  `Private` storage, a struct built with `OpCompositeConstruct` from member
+  loads, a struct whose post-`vec3` member is at offset 16 (`@align(16)`),
+  structs without `vec3` (`vec2`, `vec4`, scalars only), and a
+  `ptr<function, S>` parameter.
+
+GLSL: glslang (15.3.0 via shaderc) does not produce the failing pattern for
+the equivalent GLSL ([`shaders/by_value_glsl.comp`](shaders/by_value_glsl.comp)).
+It declares a second, undecorated struct type for the parameter, copies the
+loaded block member by member into a `Function` variable and passes a
+pointer (see `shaders/by_value_glsl.spvasm`). That is the "copied into a
+`Function` variable" case above, which works. The hand-written SPIR-V shows
+the fault does not depend on naga.
+
+### Variants tried
+
+`expect` is the correct readback; FAIL rows show the Adreno Vulkan readback.
+Run through naga + raw Vulkan (`--wgsl`) and wgpu Vulkan (`--wgpu`): same
+results; wgpu DX12 (`--wgpu --dx12`): all pass.
+
+| File | Variant | Expected | Vulkan readback |
+| --- | --- | --- | --- |
+| `e01_atmosphere_struct_return_field` | Bevy's 96-byte Atmosphere layout (vec3, f32, f32, mat4x4), helpers return inner/outer | 4 5 | **5 6** |
+| `e02_vec3_f32_f32` | vec3, f32, f32 | 4 5 | **5 6** |
+| `e03_vec3_f32` | vec3, f32 (16-byte struct) | 4 | **5** |
+| `e04_scalars_only` | five f32, no vector | 4 5 | 4 5 |
+| `e05_vec4_f32_f32` | vec4, f32, f32 | 5 6 | 5 6 |
+| `e06_no_helper_whole_load` | `let s = u;` read members in `main`, no call | 4 5 | 4 5 |
+| `e07_vec3_members` | helper returns the vec3 and the f32 | 1 2 3 4 | **1 2 3 5** |
+| `e08_function_pointer` | copy to `var`, pass `ptr<function, S>` | 4 5 | 4 5 |
+| `e09_var_copy_by_value` | copy to `var` in `main`, pass that by value | 4 5 | 4 5 |
+| `e10_f32_vec3_f32` | f32 @0, vec3 @16, f32 @28 | 1 5 6 7 8 | **1 5 6 7 9** |
+| `e11_vec2_f32_f32` | vec2, f32, f32 | 3 4 | 3 4 |
+| `e12_two_vec3` | vec3 @0, f32 @12, vec3 @16, f32 @28 | 4 5 8 | **5 9 13** |
+| `e13_scalar_control` | members passed as scalars | 4 5 | 4 5 |
+| `e14_vec3_f32_only_helper_returns_a` | vec3, f32, f32; one helper call | 4 | **5** |
+| `e15_nested_struct_member` | inner struct (vec3, f32) member of the uniform passed | 4 | **5** |
+| `e16_constructed_struct` | struct constructed in the shader from uniform scalars | 4 5 | 4 5 |
+| `e17_storage_buffer_struct` | struct in a storage buffer (written by the shader first) | 4 5 | **5 -1** |
+| `e18_workgroup_struct` | struct in workgroup memory | 4 5 | 4 5 |
+| `e19_private_struct` | struct in a private global | 4 5 | 4 5 |
+| `e20_vec3u32_f32` | vec3&lt;u32&gt;, f32 | 4 | **5** |
+| `e21_vec3_aligned_member` | vec3, `@align(16)` f32 (offset 16) | 5 | 5 |
+| `e22_helper_uses_vec3_and_a` | helper uses the vec3 and the f32 | 4 | **5** |
+| `e23_two_args` | helper `(s: S, x: f32)` like `clamp_to_surface` | 4 | **5** |
+| `e24_nested_call` | struct passed through two helper levels | 4 | **5** |
+| `e25_return_struct` | helper returns the struct, caller reads `.a` | 4 | **5** |
+| `e26_array_of_vec3_struct` | uniform `array<S, 2>`, elements passed | 4 8 | **5 9** |
+| `e27_bevy_clamp_to_surface_shape` | the shape of Bevy's `clamp_to_surface` on the 96-byte layout | 5 | **6** |
+| `spirv/h01_wrapped_load_call` | hand-written, naga's shape (Block wrapper) | 4 4 | **5 4** |
+| `spirv/h02_block_struct_load_call` | hand-written, struct itself is the Block | 4 4 | **5 4** |
+| `spirv/h03_copyobject_before_call` | `OpCopyObject` between load and call | 4 4 | **5 4** |
+| `spirv/h04_construct_from_member_loads` | argument built by `OpCompositeConstruct` from member loads | 4 4 | 4 4 |
+| `spirv/h05_separate_param_type` | undecorated parameter struct, member-wise copy (glslang's idea, SSA) | 4 4 | 4 4 |
+| `spirv/h06_load_extract_no_call` | load + extract, no call | 4 4 | 4 4 |
+| `spirv/h07_scalar_param` | scalar parameter | 4 4 | 4 4 |
+| e03 with helper `FunctionControl` `Inline` / `DontInline` (patched binary) | | 4 | **5** / **5** |
+
+## Build and run
+
+Requires Rust (stable, 2024 edition) and a Vulkan driver. The default build
+depends only on [`ash`](https://crates.io/crates/ash) and loads the
+committed SPIR-V; no shader compiler is involved.
+
+```text
+cargo run --release                          # all committed SPIR-V cases via raw Vulkan
+cargo run --release -- --spv shaders/by_value.spv
+```
+
+The exit code is 1 when any case mismatches. Optional paths:
+
+```text
+# WGSL through wgpu 30.0.1: Vulkan, and the DX12 control
+cargo run --release --features wgpu -- --wgpu shaders/by_value.wgsl
+cargo run --release --features wgpu -- --wgpu shaders/by_value.wgsl --dx12
+
+# Any WGSL compiled by naga 30.0.1, run via raw Vulkan (used for experiments/)
+cargo run --release --features naga -- --wgsl experiments/e03_vec3_f32.wgsl
+```
+
+### Regenerating and validating the SPIR-V
+
+The naga output (SPIR-V 1.0, naga 30.0.1 default writer options; the
+disassembly is rspirv 0.13.0's):
+
+```text
+cargo run --release --features naga -- --emit shaders/by_value.wgsl   # writes .spv and .spvasm
+cargo run --release --features naga -- --emit shaders/scalar.wgsl
+```
+
+GLSL, hand-written assembly and validation use the separate
+[`tools/shader-tools`](tools/shader-tools) crate (builds glslang 15.3.0 through
+shaderc 0.10.1 and SPIRV-Tools v2025.3 through spirv-tools 0.13.3 from source;
+needs CMake, Ninja, Python and a C++ compiler):
+
+```text
+cd tools/shader-tools
+cargo run --release -- glsl ../../shaders/by_value_glsl.comp      # Vulkan 1.0, SPIR-V 1.0, -O0
+cargo run --release -- glsl ../../shaders/scalar_glsl.comp
+cargo run --release -- dis ../../shaders/by_value_glsl.spv
+cargo run --release -- dis ../../shaders/scalar_glsl.spv
+cargo run --release -- as ../../shaders/handwritten_by_value.spvasm
+cargo run --release -- as ../../shaders/handwritten_scalar.spvasm
+cargo run --release -- validate ../../shaders/by_value.spv ../../shaders/scalar.spv ../../shaders/handwritten_by_value.spv ../../shaders/handwritten_scalar.spv ../../shaders/by_value_glsl.spv ../../shaders/scalar_glsl.spv
+```
+
+`validate` uses the SPIRV-Tools validator with target environment Vulkan 1.0
+(the equivalent of `spirv-val --target-env vulkan1.0`); all six modules and
+all `experiments/spirv` modules are valid. With a Vulkan SDK installed,
+`spirv-val --target-env vulkan1.0 shaders/*.spv` gives the same answer (the
+original Bevy module was also checked with SPIRV-Tools 2026.1 `spirv-val`).
+On this Windows ARM64 host, if a global Cargo configuration sets
+`CXX_aarch64_pc_windows_msvc` to `clang++`, CMake rejects the mixed clang
+front ends; setting it to `clang-cl` for this build works.
+
+The regeneration is deterministic: re-emitting the WGSL produces the
+committed bytes.
+
+## Controls
+
+- Scalar-argument twin of every failing shader passes (`scalar.*`,
+  `handwritten_scalar.*`, `e13`, `h07`).
+- The same WGSL through DX12 on the same GPU passes (`--wgpu --dx12`; every
+  experiment).
+- Every committed module passes the SPIRV-Tools validator for Vulkan 1.0.
+- Each failing shader also reads the member directly in `main` in the same
+  dispatch (`out[1]`), which is correct.
+- A hand-written module without any shader front end fails the same way.
+- Not checked: other GPUs and drivers (no other Vulkan device was available).
+
+## Environment
+
+Gathered on 2026-10-14 with `Get-CimInstance`, the Windows registry and the
+adapter info printed by this program.
+
+| | |
+| --- | --- |
+| Device | Microsoft Surface Pro, 11th Edition (SKU `Surface_Pro_11th_Edition_2076`), UEFI 175.222.235 |
+| SoC | Snapdragon X Elite X1E80100 (`Snapdragon(R) X 12-core X1E80100 @ 3.40 GHz`) |
+| GPU | Qualcomm(R) Adreno(TM) X1-85 GPU, Vulkan vendor `0x5143`, device `0x36334330` |
+| Graphics driver | 31.0.170.0 (Windows driver date 2026-07-25) |
+| Vulkan `driverName` | Qualcomm Technologies Inc. Adreno Vulkan Driver |
+| Vulkan `driverInfo` | `Driver Build: 0eb8636cd3, Id6ce193842, 1782814497` / `Date: 06/30/2026` / `Compiler Version: E031.52.01.00` / `Driver Branch: BVT_187` |
+| Vulkan `driverVersion` (raw) | `0x80376000` |
+| Vulkan API version | 1.4.295, conformance version 1.4.1.0 |
+| Vulkan loader | `vulkan-1.dll` 1.4.350.0 |
+| OS | Windows 11 Home, version 25H2, build 26200.9457, ARM64 |
+| Rust | rustc 1.98.1 (48a229cea 2026-09-01), host `aarch64-pc-windows-msvc` |
+| Crates | ash 0.38.0+1.3.281; naga 30.0.1; rspirv 0.13.0+sdk-1.4.341.0; wgpu 30.0.1; pollster 0.4.0; tools: shaderc 0.10.1 (glslang 15.3.0), spirv-tools 0.13.3 (SPIRV-Tools v2025.3) |
+
+The original Bevy case also failed on the earlier driver 31.0.137.0 (Vulkan
+`Driver Build: f6d77cea75, I4ecc8b8813`, 2025-11-20, compiler
+`E031.50.31.01`); this reduced repro was only run on 31.0.170.0.
+
+## License
+
+Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or
+[MIT license](LICENSE-MIT) at your option. `experiments/e27` reproduces the
+five-line shape of Bevy's `clamp_to_surface` (Bevy is MIT OR Apache-2.0).

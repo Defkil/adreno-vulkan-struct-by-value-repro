@@ -1,0 +1,23 @@
+[package]
+name = "adreno-struct-by-value-repro"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[[bin]]
+name = "repro"
+path = "src/main.rs"
+
+[dependencies]
+ash = { version = "=0.38.0", default-features = false, features = ["loaded", "std"] }
+naga = { version = "=30.0.1", optional = true, features = ["wgsl-in", "spv-out"] }
+rspirv = { version = "=0.13.0", optional = true }
+wgpu = { version = "=30.0.1", optional = true, default-features = false, features = ["std", "vulkan", "dx12", "wgsl"] }
+pollster = { version = "0.4", optional = true }
+
+[features]
+# WGSL -> SPIR-V with naga (regenerate the committed .spv/.spvasm, run experiments)
+naga = ["dep:naga", "dep:rspirv"]
+# Run the WGSL through wgpu (Vulkan or --dx12)
+wgpu = ["dep:wgpu", "dep:pollster"]

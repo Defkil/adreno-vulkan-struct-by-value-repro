@@ -1,0 +1,57 @@
+; SPIR-V 1.0 hand-written variant: control: helper takes the float member as a scalar
+; expect: 4 4
+OpCapability Shader
+OpExtension "SPV_KHR_storage_buffer_storage_class"
+OpMemoryModel Logical GLSL450
+OpEntryPoint GLCompute %main "main"
+OpExecutionMode %main LocalSize 1 1 1
+OpMemberDecorate %S 0 Offset 0
+OpMemberDecorate %S 1 Offset 12
+OpDecorate %U Block
+OpMemberDecorate %U 0 Offset 0
+OpDecorate %arr ArrayStride 4
+OpDecorate %u DescriptorSet 0
+OpDecorate %u Binding 0
+OpDecorate %Out Block
+OpMemberDecorate %Out 0 Offset 0
+OpDecorate %out DescriptorSet 0
+OpDecorate %out Binding 1
+%void = OpTypeVoid
+%float = OpTypeFloat 32
+%v3float = OpTypeVector %float 3
+%uint = OpTypeInt 32 0
+%uint_0 = OpConstant %uint 0
+%uint_1 = OpConstant %uint 1
+%uint_16 = OpConstant %uint 16
+%S = OpTypeStruct %v3float %float
+%arr = OpTypeArray %float %uint_16
+%Out = OpTypeStruct %arr
+%ptr_out = OpTypePointer StorageBuffer %Out
+%out = OpVariable %ptr_out StorageBuffer
+%ptr_sb_float = OpTypePointer StorageBuffer %float
+%ptr_u_float = OpTypePointer Uniform %float
+%ptr_u_v3 = OpTypePointer Uniform %v3float
+%fn_void = OpTypeFunction %void
+%U = OpTypeStruct %S
+%ptr_u_U = OpTypePointer Uniform %U
+%u = OpVariable %ptr_u_U Uniform
+%ptr_u_S = OpTypePointer Uniform %S
+
+%fn_get = OpTypeFunction %float %float
+%get_a = OpFunction %float None %fn_get
+%s = OpFunctionParameter %float
+%gl = OpLabel
+OpReturnValue %s
+OpFunctionEnd
+%main = OpFunction %void None %fn_void
+%ml = OpLabel
+%sp = OpAccessChain %ptr_u_S %u %uint_0
+%o0 = OpAccessChain %ptr_sb_float %out %uint_0 %uint_0
+%o1 = OpAccessChain %ptr_sb_float %out %uint_0 %uint_1
+%pa = OpAccessChain %ptr_u_float %sp %uint_1
+%direct = OpLoad %float %pa
+OpStore %o1 %direct
+%r = OpFunctionCall %float %get_a %direct
+OpStore %o0 %r
+OpReturn
+OpFunctionEnd

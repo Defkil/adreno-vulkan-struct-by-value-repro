@@ -1,0 +1,92 @@
+; SPIR-V
+; Version: 1.0
+; Generator: Google Shaderc over Glslang; 11
+; Bound: 41
+; Schema: 0
+               OpCapability Shader
+          %1 = OpExtInstImport "GLSL.std.450"
+               OpMemoryModel Logical GLSL450
+               OpEntryPoint GLCompute %main "main"
+               OpExecutionMode %main LocalSize 1 1 1
+
+               ; Debug Information
+               OpSource GLSL 450
+               OpSourceExtension "GL_GOOGLE_cpp_style_line_directive"
+               OpSourceExtension "GL_GOOGLE_include_directive"
+               OpName %main "main"                  ; id %4
+               OpName %get_a_f1_ "get_a(f1;"        ; id %10
+               OpName %a "a"                        ; id %9
+               OpName %Out "Out"                    ; id %18
+               OpMemberName %Out 0 "o"
+               OpName %result "result"              ; id %20
+               OpName %S "S"                        ; id %24
+               OpMemberName %S 0 "v"
+               OpMemberName %S 1 "a"
+               OpName %U "U"                        ; id %25
+               OpMemberName %U 0 "s"
+               OpName %u "u"                        ; id %27
+               OpName %param "param"                ; id %29
+
+               ; Annotations
+               OpDecorate %_arr_float_uint_16 ArrayStride 4
+               OpDecorate %Out BufferBlock
+               OpMemberDecorate %Out 0 Offset 0
+               OpDecorate %result Binding 1
+               OpDecorate %result DescriptorSet 0
+               OpMemberDecorate %S 0 Offset 0
+               OpMemberDecorate %S 1 Offset 12
+               OpDecorate %U Block
+               OpMemberDecorate %U 0 Offset 0
+               OpDecorate %u Binding 0
+               OpDecorate %u DescriptorSet 0
+               OpDecorate %gl_WorkGroupSize BuiltIn WorkgroupSize
+
+               ; Types, variables and constants
+       %void = OpTypeVoid
+          %3 = OpTypeFunction %void
+      %float = OpTypeFloat 32
+%_ptr_Function_float = OpTypePointer Function %float
+          %8 = OpTypeFunction %float %_ptr_Function_float
+       %uint = OpTypeInt 32 0
+    %uint_16 = OpConstant %uint 16
+%_arr_float_uint_16 = OpTypeArray %float %uint_16   ; ArrayStride 4
+        %Out = OpTypeStruct %_arr_float_uint_16     ; BufferBlock
+%_ptr_Uniform_Out = OpTypePointer Uniform %Out
+     %result = OpVariable %_ptr_Uniform_Out Uniform     ; Binding 1, DescriptorSet 0
+        %int = OpTypeInt 32 1
+      %int_0 = OpConstant %int 0
+    %v3float = OpTypeVector %float 3
+          %S = OpTypeStruct %v3float %float
+          %U = OpTypeStruct %S                      ; Block
+%_ptr_Uniform_U = OpTypePointer Uniform %U
+          %u = OpVariable %_ptr_Uniform_U Uniform   ; Binding 0, DescriptorSet 0
+      %int_1 = OpConstant %int 1
+%_ptr_Uniform_float = OpTypePointer Uniform %float
+     %v3uint = OpTypeVector %uint 3
+     %uint_1 = OpConstant %uint 1
+%gl_WorkGroupSize = OpConstantComposite %v3uint %uint_1 %uint_1 %uint_1     ; BuiltIn WorkgroupSize
+
+               ; Function main
+       %main = OpFunction %void None %3
+          %5 = OpLabel
+      %param = OpVariable %_ptr_Function_float Function
+         %31 = OpAccessChain %_ptr_Uniform_float %u %int_0 %int_1
+         %32 = OpLoad %float %31
+               OpStore %param %32
+         %33 = OpFunctionCall %float %get_a_f1_ %param
+         %34 = OpAccessChain %_ptr_Uniform_float %result %int_0 %int_0
+               OpStore %34 %33
+         %35 = OpAccessChain %_ptr_Uniform_float %u %int_0 %int_1
+         %36 = OpLoad %float %35
+         %37 = OpAccessChain %_ptr_Uniform_float %result %int_0 %int_1
+               OpStore %37 %36
+               OpReturn
+               OpFunctionEnd
+
+               ; Function get_a_f1_
+  %get_a_f1_ = OpFunction %float None %8
+          %a = OpFunctionParameter %_ptr_Function_float
+         %11 = OpLabel
+         %12 = OpLoad %float %a
+               OpReturnValue %12
+               OpFunctionEnd

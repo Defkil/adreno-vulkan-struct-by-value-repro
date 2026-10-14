@@ -1,0 +1,4 @@
+*.spv binary
+*.spvasm text eol=lf
+*.wgsl text eol=lf
+*.comp text eol=lf
