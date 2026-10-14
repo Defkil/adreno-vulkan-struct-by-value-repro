@@ -8,10 +8,10 @@ packed into the `vec3`'s 16-byte slot) the helper's `s.a` returns the float at
 byte offset **16** instead of 12. The same member read directly in the caller
 is correct, passing the member as a scalar argument is correct, and the same
 shader through DX12 on the same GPU is correct. The SPIR-V is accepted by
-`spirv-val --target-env vulkan1.0`, and a hand-written SPIR-V module without
-any front end reproduces it, so the fault is in the Vulkan driver's shader
-compiler. This repository runs the committed SPIR-V through raw Vulkan
-(`ash`, no wgpu) and reads the result back.
+`spirv-val --target-env vulkan1.0` (SPIRV-Tools v2026.4), and a hand-written
+SPIR-V module without any front end reproduces it, which points to the Vulkan
+driver's shader compiler. This repository runs the committed SPIR-V through
+raw Vulkan (`ash`, no wgpu) and reads the result back.
 
 The case was found in Bevy 0.20's atmosphere shaders: the helper
 `clamp_to_surface(atmosphere: Atmosphere, position)` read `outer_radius`
@@ -36,7 +36,8 @@ Every shader reads the same uniform buffer: 64 floats where float `i` holds
 | `shaders/by_value.wgsl` through wgpu, **DX12** | 4 | 4 | pass |
 | `shaders/by_value.wgsl` through wgpu, Vulkan | expected 4, **actual 5** | 4 | FAIL |
 
-Output of `cargo run --release` on the device below:
+Output of `cargo run --release` on the device below (excerpt: the adapter
+info lines and the readback lines of the last three cases are omitted):
 
 ```text
 FAIL  vulkan(spirv) ...\shaders\by_value.spv
@@ -103,7 +104,7 @@ OpDecorate %S Block
 ### What triggers it
 
 Found by the variants in [`experiments/`](experiments) (all on the device
-below, Vulkan; every one of them passes through DX12):
+below, Vulkan; every WGSL variant passes through DX12):
 
 - An `OpLoad` of a whole explicitly laid-out struct from a `Uniform` or
   `StorageBuffer` variable whose value reaches an `OpFunctionCall` argument
@@ -214,7 +215,7 @@ cargo run --release --features naga -- --emit shaders/by_value.wgsl   # writes .
 cargo run --release --features naga -- --emit shaders/scalar.wgsl
 ```
 
-GLSL, hand-written assembly and validation use the separate
+GLSL, hand-written assembly and disassembly use the separate
 [`tools/shader-tools`](tools/shader-tools) crate (builds glslang 15.3.0 through
 shaderc 0.10.1 and SPIRV-Tools v2025.3 through spirv-tools 0.13.3 from source;
 needs CMake, Ninja, Python and a C++ compiler):
@@ -227,17 +228,23 @@ cargo run --release -- dis ../../shaders/by_value_glsl.spv
 cargo run --release -- dis ../../shaders/scalar_glsl.spv
 cargo run --release -- as ../../shaders/handwritten_by_value.spvasm
 cargo run --release -- as ../../shaders/handwritten_scalar.spvasm
-cargo run --release -- validate ../../shaders/by_value.spv ../../shaders/scalar.spv ../../shaders/handwritten_by_value.spv ../../shaders/handwritten_scalar.spv ../../shaders/by_value_glsl.spv ../../shaders/scalar_glsl.spv
 ```
 
-`validate` uses the SPIRV-Tools validator with target environment Vulkan 1.0
-(the equivalent of `spirv-val --target-env vulkan1.0`); all six modules and
-all `experiments/spirv` modules are valid. With a Vulkan SDK installed,
-`spirv-val --target-env vulkan1.0 shaders/*.spv` gives the same answer (the
-original Bevy module was also checked with SPIRV-Tools 2026.1 `spirv-val`).
-On this Windows ARM64 host, if a global Cargo configuration sets
-`CXX_aarch64_pc_windows_msvc` to `clang++`, CMake rejects the mixed clang
-front ends; setting it to `clang-cl` for this build works.
+All 13 committed modules (`shaders/*.spv` and `experiments/spirv/*.spv`)
+were validated on 2026-10-14 with the official standalone validator, built
+from source: KhronosGroup/SPIRV-Tools tag `v2026.4` (commit `ef96ed7`) with
+KhronosGroup/SPIRV-Headers at `4965431` (the revision pinned by that tag's
+`DEPS`), CMake Release build. `spirv-val --version` prints
+`SPIRV-Tools v2026.4 v2026.4-0-gef96ed7`.
+
+```text
+spirv-val --target-env vulkan1.0 <file.spv>
+spirv-val --target-env vulkan1.3 <file.spv>
+```
+
+Every module passes for both target environments (exit code 0, no
+diagnostics). The original Bevy module was checked earlier with SPIRV-Tools
+2026.1 `spirv-val --target-env vulkan1.0`.
 
 The regeneration is deterministic: re-emitting the WGSL produces the
 committed bytes.
@@ -247,8 +254,9 @@ committed bytes.
 - Scalar-argument twin of every failing shader passes (`scalar.*`,
   `handwritten_scalar.*`, `e13`, `h07`).
 - The same WGSL through DX12 on the same GPU passes (`--wgpu --dx12`; every
-  experiment).
-- Every committed module passes the SPIRV-Tools validator for Vulkan 1.0.
+  WGSL experiment).
+- Every committed SPIR-V module passes `spirv-val` (SPIRV-Tools v2026.4) for
+  Vulkan 1.0 and Vulkan 1.3.
 - Each failing shader also reads the member directly in `main` in the same
   dispatch (`out[1]`), which is correct.
 - A hand-written module without any shader front end fails the same way.
@@ -272,7 +280,7 @@ adapter info printed by this program.
 | Vulkan loader | `vulkan-1.dll` 1.4.350.0 |
 | OS | Windows 11 Home, version 25H2, build 26200.9457, ARM64 |
 | Rust | rustc 1.98.1 (48a229cea 2026-09-01), host `aarch64-pc-windows-msvc` |
-| Crates | ash 0.38.0+1.3.281; naga 30.0.1; rspirv 0.13.0+sdk-1.4.341.0; wgpu 30.0.1; pollster 0.4.0; tools: shaderc 0.10.1 (glslang 15.3.0), spirv-tools 0.13.3 (SPIRV-Tools v2025.3) |
+| Crates | ash 0.38.0+1.3.281; naga 30.0.1; rspirv 0.13.0+sdk-1.4.341.0; wgpu 30.0.1; pollster 0.4.0; tools: shaderc 0.10.1 (glslang 15.3.0), spirv-tools 0.13.3 (SPIRV-Tools v2025.3, used for `as`/`dis`); validation: `spirv-val` v2026.4 |
 
 The original Bevy case also failed on the earlier driver 31.0.137.0 (Vulkan
 `Driver Build: f6d77cea75, I4ecc8b8813`, 2025-11-20, compiler
