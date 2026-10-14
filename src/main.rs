@@ -93,13 +93,17 @@ fn print_adapter(a: &vulkan::Adapter) {
     println!();
 }
 
+fn display_path(path: &Path) -> &Path {
+    path.strip_prefix(env!("CARGO_MANIFEST_DIR")).unwrap_or(path)
+}
+
 fn run_spv(path: &Path, show_adapter: bool) -> bool {
     let (adapter, values) = vulkan::run(&read_spirv(path), &uniform_bytes(), OUTPUT_LEN);
     if show_adapter {
         print_adapter(&adapter);
     }
     report(
-        &format!("vulkan(spirv) {}", path.display()),
+        &format!("vulkan(spirv) {}", display_path(path).display()),
         &values,
         &expected(path),
     )
@@ -149,7 +153,7 @@ fn main() {
                 print_adapter(&adapter);
             }
             report(
-                &format!("vulkan(naga) {}", path.display()),
+                &format!("vulkan(naga) {}", display_path(path).display()),
                 &values,
                 &expected(path),
             )
@@ -166,7 +170,7 @@ fn main() {
             let values = pollster::block_on(wgpu_path::run(path, dx12));
             let backend = if dx12 { "dx12" } else { "vulkan" };
             report(
-                &format!("wgpu({backend}) {}", path.display()),
+                &format!("wgpu({backend}) {}", display_path(path).display()),
                 &values,
                 &expected(path),
             )

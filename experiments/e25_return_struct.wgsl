@@ -1,4 +1,4 @@
-// Helper returns the struct by value; caller reads the member.
+// Pass-through helper takes and returns the struct by value; caller reads the member.
 // expect: 4
 struct S { v: vec3<f32>, a: f32 }
 @group(0) @binding(0) var<uniform> u: S;

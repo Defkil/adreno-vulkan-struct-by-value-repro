@@ -1,6 +1,6 @@
-//! `shader-tools validate <file.spv>...`  spirv-val --target-env vulkan1.0 equivalent
+//! `shader-tools validate <file.spv>...`  spirv-val --target-env vulkan1.0 / vulkan1.3 equivalent
 //! `shader-tools dis <file.spv>`           write <file>.spvasm (SPIRV-Tools disassembler)
-//! `shader-tools as <file.spvasm>`      assemble SPIR-V text -> <file>.spv
+//! `shader-tools as <file.spvasm>`         assemble SPIR-V text -> <file>.spv
 //! `shader-tools glsl <file.comp>`         glslang (via shaderc) -> <file>.spv, Vulkan 1.0 / SPIR-V 1.0
 use spirv_tools::{TargetEnv, assembler::Assembler, val::Validator};
 use std::path::Path;
@@ -17,11 +17,13 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         Some("validate") => {
-            let validator = spirv_tools::val::create(Some(TargetEnv::Vulkan_1_0));
+            let v10 = spirv_tools::val::create(Some(TargetEnv::Vulkan_1_0));
+            let v13 = spirv_tools::val::create(Some(TargetEnv::Vulkan_1_3));
             let mut ok = true;
             for file in &args[1..] {
-                match validator.validate(words(Path::new(file)), None) {
-                    Ok(()) => println!("valid   {file}"),
+                let w = words(Path::new(file));
+                match v10.validate(&w, None).and_then(|()| v13.validate(&w, None)) {
+                    Ok(()) => println!("valid (vulkan1.0, vulkan1.3) {file}"),
                     Err(e) => {
                         ok = false;
                         println!("INVALID {file}: {e}")

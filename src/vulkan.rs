@@ -65,7 +65,7 @@ pub fn run(spirv: &[u32], uniform: &[u8], output_len: usize) -> (Adapter, Vec<f3
             api_version: version(props.api_version),
             driver_version_raw: props.driver_version,
             driver_name: cstr(&driver.driver_name),
-            driver_info: cstr(&driver.driver_info),
+            driver_info: cstr(&driver.driver_info).trim_end().to_owned(),
             conformance: format!("{}.{}.{}.{}", c.major, c.minor, c.subminor, c.patch),
         };
 
