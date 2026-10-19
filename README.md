@@ -66,6 +66,16 @@ This confirms the standalone repro passes on that Radeon device/driver.
 The original Bevy game was not tested on the comparison host, and other
 GPU/driver combinations remain untested.
 
+On **2026-10-19** the same source also ran on **Android with Qualcomm's
+Vulkan driver on an Adreno 650** (Galaxy Tab S7, driver dated 10/07/21,
+compiler EV031.32.02.10). All 71 checks (13 SPIR-V modules, 29 WGSL files
+through naga and through wgpu) returned **exactly the X1-85 readbacks**,
+failures included: the bug is not specific to the Windows driver or to the
+X1-85.
+
+- [Android Adreno 650 report, exact environment, and commands](docs/validation/android-adreno650-2026-10-19.md)
+- [All 71 Android readbacks](docs/validation/android-adreno650-2026-10-19.txt)
+
 ## Expected and actual readback on Adreno
 
 Every shader reads the same uniform buffer: 64 floats where float `i` holds
@@ -173,7 +183,7 @@ OpDecorate %S Block
 
 ### What triggers it
 
-Found by the variants in [xperiments/](experiments), all on Adreno X1-85
+Found by the variants in [experiments/](experiments), all on Adreno X1-85
 with driver 31.0.170.0, Vulkan. Every WGSL variant passes through DX12:
 
 - An `OpLoad` of a whole explicitly laid-out struct from a `Uniform` or
@@ -181,11 +191,13 @@ with driver 31.0.170.0, Vulkan. Every WGSL variant passes through DX12:
   argument (directly, through `OpCopyObject`, through a nested call, or
   passed into and returned back out of the helper), and
 - the struct has a `vec3` followed by a member that starts inside the
-  `vec3`'s 16-byte slot (byte offset 12).
+  `vec3`'s 16-byte slot (12 bytes after the `vec3`).
 - The member immediately after a `vec3` is then read 4 bytes too far (byte
-  offset 16 instead of 12). In `e12_two_vec3` (`v: vec3 @0, a: f32 @12,
-  w: vec3 @16, b: f32 @28`), `a`, `w.x`, and `b` are read from byte offsets
-  16, 32, and 48 instead of 12, 16, and 28 (`5, 9, 13` instead of `4, 5, 8`).
+  offset 16 instead of 12 for a `vec3` at offset 0, 32 instead of 28 in
+  `e10`; later members shift as well, see `e02`). In `e12_two_vec3`
+  (`v: vec3 @0, a: f32 @12, w: vec3 @16, b: f32 @28`), `a`, `w.x`, and `b`
+  are read from byte offsets 16, 32, and 48 instead of 12, 16, and 28
+  (`5, 9, 13` instead of `4, 5, 8`).
   The observed values match a layout where every `vec3` occupies a full
   16-byte slot—pushing `a` to byte 16, aligning `w: vec3` to byte 32, and
   pushing `b` to byte 48—i.e. as if the `Offset` decorations were replaced by
@@ -206,7 +218,7 @@ with driver 31.0.170.0, Vulkan. Every WGSL variant passes through DX12:
   undecorated parameter struct (`h05`), a struct whose post-`vec3` member is
   at offset 16 (`@align(16)`, `e21`), structs without `vec3` (`vec2`, `vec4`,
   scalars only), and a 0-argument helper that loads `u` and returns `S`
-  without taking `S` as a parameter.
+  without taking `S` as a parameter (tested ad hoc; no committed file).
 
 GLSL: glslang (15.3.0 via shaderc) does not produce the failing pattern for
 the equivalent GLSL ([`shaders/by_value_glsl.comp`](shaders/by_value_glsl.comp)).
@@ -287,6 +299,8 @@ mismatches. Run through naga + raw Vulkan (`--wgsl`) and wgpu Vulkan
   (SPIRV-Tools v2026.4 and v2025.3) for Vulkan 1.0 and Vulkan 1.3.
 - **Second host**: all 100 GPU checks pass on AMD Radeon RX 7900 XTX;
   see the comparison and readback links above.
+- **Second Qualcomm driver**: Android's Adreno 650 Vulkan driver reproduces
+  every X1-85 readback (71 checks); see the Android report linked above.
 
 ## Workarounds
 
