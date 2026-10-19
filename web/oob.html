@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Adreno struct-by-value bounds test</title>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; margin: 16px; background: #fff; color: #111; }
+  pre { white-space: pre-wrap; word-break: break-word; background: #f3f3f3; padding: 12px; border-radius: 6px; }
+  .fail { color: #b00020; font-weight: bold; }
+  .pass { color: #0a7d22; font-weight: bold; }
+  .warn { color: #a05a00; font-weight: bold; }
+</style>
+<h1>Struct-by-value bounds test</h1>
+<pre id="out">running…</pre>
+<script type="module">
+const out = document.getElementById('out');
+const log = (s, cls) => {
+  const line = document.createElement('span');
+  if (cls) line.className = cls;
+  line.textContent = s + '\n';
+  out.append(line);
+};
+out.textContent = '';
+log('userAgent: ' + navigator.userAgent);
+
+// S occupies bytes 0..15 (vec3 @0, f32 @12). The buggy driver reads `a` from
+// byte 16 instead of 12. We bind binding(0) to only the first 16 bytes of a
+// larger buffer, with a sentinel at byte 16. If the readback shows the
+// sentinel, the faulty read crossed the binding boundary despite robustness.
+const code = `
+struct S { v: vec3<f32>, a: f32 }
+@group(0) @binding(0) var<storage, read> u: S;
+@group(0) @binding(1) var<storage, read_write> output: array<f32, 16>;
+fn get_a(s: S) -> f32 { return s.a; }
+@compute @workgroup_size(1) fn main() { output[0] = get_a(u); output[1] = u.a; }`;
+
+const SENTINEL = 777;
+
+async function run() {
+  if (!navigator.gpu) { log('WebGPU not available', 'fail'); return; }
+  const adapter = await navigator.gpu.requestAdapter();
+  if (!adapter) { log('requestAdapter() returned null', 'fail'); return; }
+  const info = adapter.info || {};
+  log(`adapter: vendor="${info.vendor}" architecture="${info.architecture}"`);
+  const device = await adapter.requestDevice();
+  device.addEventListener('uncapturederror', e => log('GPU error: ' + e.error.message, 'fail'));
+
+  // Backing buffer: S in bytes 0..15, sentinel at byte 16, rest a different marker.
+  const backing = new Float32Array(64).fill(123);
+  backing[0] = 1; backing[1] = 2; backing[2] = 3; // v
+  backing[3] = 4;                                  // a @ byte 12 (correct value)
+  backing[4] = SENTINEL;                           // byte 16 (just past the 16-byte binding)
+
+  const src = device.createBuffer({ size: 256, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+  device.queue.writeBuffer(src, 0, backing);
+
+  const module = device.createShaderModule({ code });
+  const pipeline = device.createComputePipeline({ layout: 'auto', compute: { module, entryPoint: 'main' } });
+
+  const ssbo = device.createBuffer({ size: 64, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+  device.queue.writeBuffer(ssbo, 0, new Float32Array(16).fill(-1));
+  const readback = device.createBuffer({ size: 64, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+
+  // binding(0) spans ONLY the 16 bytes of S. Byte 16 (the sentinel) is outside it.
+  const bind = device.createBindGroup({
+    layout: pipeline.getBindGroupLayout(0),
+    entries: [
+      { binding: 0, resource: { buffer: src, offset: 0, size: 16 } },
+      { binding: 1, resource: { buffer: ssbo } },
+    ],
+  });
+
+  const enc = device.createCommandEncoder();
+  const pass = enc.beginComputePass();
+  pass.setPipeline(pipeline);
+  pass.setBindGroup(0, bind);
+  pass.dispatchWorkgroups(1);
+  pass.end();
+  enc.copyBufferToBuffer(ssbo, 0, readback, 0, 64);
+  device.queue.submit([enc.finish()]);
+  await readback.mapAsync(GPUMapMode.READ);
+  const r = Array.from(new Float32Array(readback.getMappedRange()).slice(0, 2));
+  readback.unmap();
+
+  log(`binding(0) size = 16 bytes; sentinel ${SENTINEL} sits at byte 16 (outside the binding)`);
+  log(`helper get_a(u) = ${r[0]}   direct u.a = ${r[1]}`);
+  if (r[0] === SENTINEL) {
+    log('RESULT: the faulty read returned data from PAST the 16-byte binding.', 'fail');
+  } else if (r[0] === 4 && r[1] === 4) {
+    log('RESULT: helper read the correct value; the bug did not trigger in this config.', 'pass');
+  } else if (r[0] === 0 && r[1] === 4) {
+    log('RESULT: out-of-binding read was clamped to 0 by robustness (contained).', 'pass');
+  } else {
+    log(`RESULT: helper returned ${r[0]} (neither correct 4 nor sentinel ${SENTINEL}); inconclusive.`, 'warn');
+  }
+}
+run().catch(e => log('error: ' + e, 'fail'));
+</script>
+</html>

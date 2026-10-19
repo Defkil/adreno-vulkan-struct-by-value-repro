@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Adreno struct-by-value WebGPU test</title>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; margin: 16px; background: #fff; color: #111; }
+  pre { white-space: pre-wrap; word-break: break-word; background: #f3f3f3; padding: 12px; border-radius: 6px; }
+  .fail { color: #b00020; font-weight: bold; }
+  .pass { color: #0a7d22; font-weight: bold; }
+</style>
+<h1>Struct-by-value WebGPU test</h1>
+<pre id="out">running…</pre>
+<script type="module">
+const out = document.getElementById('out');
+const log = (s, cls) => {
+  const line = document.createElement('span');
+  if (cls) line.className = cls;
+  line.textContent = s + '\n';
+  out.append(line);
+};
+out.textContent = '';
+log('userAgent: ' + navigator.userAgent);
+log('navigator.gpu: ' + (navigator.gpu ? 'present' : 'MISSING (WebGPU not available)'));
+
+// Same shaders as shaders/by_value.wgsl and shaders/scalar.wgsl in the repro,
+// plus storage-buffer variants (Tint decomposes uniform loads, not storage loads).
+const header = (space) => `
+struct S { v: vec3<f32>, a: f32 }
+@group(0) @binding(0) var<${space}> u: S;
+@group(0) @binding(1) var<storage, read_write> output: array<f32, 16>;
+`;
+const byValue = `
+fn get_a(s: S) -> f32 { return s.a; }
+@compute @workgroup_size(1) fn main() { output[0] = get_a(u); output[1] = u.a; }`;
+const scalar = `
+fn get_a(a: f32) -> f32 { return a; }
+@compute @workgroup_size(1) fn main() { output[0] = get_a(u.a); output[1] = u.a; }`;
+const cases = [
+  ['uniform by_value', 'uniform', header('uniform') + byValue],
+  ['uniform scalar (control)', 'uniform', header('uniform') + scalar],
+  ['storage by_value', 'storage', header('storage, read') + byValue],
+  ['storage scalar (control)', 'storage', header('storage, read') + scalar],
+];
+
+async function run() {
+  if (!navigator.gpu) return;
+  const adapter = await navigator.gpu.requestAdapter();
+  if (!adapter) { log('requestAdapter() returned null', 'fail'); return; }
+  const info = adapter.info || {};
+  log(`adapter: vendor="${info.vendor}" architecture="${info.architecture}" device="${info.device}" description="${info.description}"`);
+  const device = await adapter.requestDevice();
+  device.addEventListener('uncapturederror', e => log('GPU error: ' + e.error.message, 'fail'));
+
+  // 64 floats, float i holds i + 1: a value names the slot it was read from.
+  const uniformData = new Float32Array(64).map((_, i) => i + 1);
+  const inputs = {};
+  for (const [kind, usage] of [['uniform', GPUBufferUsage.UNIFORM], ['storage', GPUBufferUsage.STORAGE]]) {
+    inputs[kind] = device.createBuffer({ size: 256, usage: usage | GPUBufferUsage.COPY_DST });
+    device.queue.writeBuffer(inputs[kind], 0, uniformData);
+  }
+
+  for (const [name, kind, code] of cases) {
+    const ubo = inputs[kind];
+    const module = device.createShaderModule({ code });
+    const pipeline = device.createComputePipeline({ layout: 'auto', compute: { module, entryPoint: 'main' } });
+    const ssbo = device.createBuffer({ size: 64, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+    device.queue.writeBuffer(ssbo, 0, new Float32Array(16).fill(-1));
+    const readback = device.createBuffer({ size: 64, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+    const bind = device.createBindGroup({
+      layout: pipeline.getBindGroupLayout(0),
+      entries: [{ binding: 0, resource: { buffer: ubo } }, { binding: 1, resource: { buffer: ssbo } }],
+    });
+    const enc = device.createCommandEncoder();
+    const pass = enc.beginComputePass();
+    pass.setPipeline(pipeline);
+    pass.setBindGroup(0, bind);
+    pass.dispatchWorkgroups(1);
+    pass.end();
+    enc.copyBufferToBuffer(ssbo, 0, readback, 0, 64);
+    device.queue.submit([enc.finish()]);
+    await readback.mapAsync(GPUMapMode.READ);
+    const r = Array.from(new Float32Array(readback.getMappedRange()).slice(0, 2));
+    readback.unmap();
+    const ok = r[0] === 4 && r[1] === 4;
+    log(`${ok ? 'PASS' : 'FAIL'}  ${name}: expected [4, 4], readback [${r.join(', ')}]`, ok ? 'pass' : 'fail');
+  }
+}
+run().catch(e => log('error: ' + e, 'fail'));
+</script>
+</html>
