@@ -51,6 +51,12 @@ failure appears the same on current Brave, Edge and Opera (all Chromium); an
 older Brave (1.71.123, 2024) failed on `var<uniform>` too, before Tint
 decomposed uniform buffers.
 
+On **Windows-on-ARM** (Surface Pro 11, Adreno X1-85) the same pages pass in
+Chromium, storage `by_value` included: there WebGPU runs on **D3D12**, which is
+correct (WebGPU does not expose the backend; this is inferred from the pass and
+Dawn's Windows default). The driver bug is still present on that GPU under native
+Vulkan — it is just not reached through the browser there.
+
 ## Firefox
 
 Firefox does not reach Qualcomm's Vulkan compiler in a default build: release
